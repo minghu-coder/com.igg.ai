@@ -28,5 +28,5 @@ Controls: Arrow keys / WASD to move, Space / Up / W to jump, Enter to start or r
 
 ## Environment
 
-- Windows, Git Bash shell (`/d/...` paths).
+- Windows, PowerShell (pwsh) shell.
 - Git worktrees are used (e.g. `feature/initial-setup` under `.worktrees/`, which is gitignored) — keep `.worktrees/` out of commits.

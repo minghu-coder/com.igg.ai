@@ -473,11 +473,14 @@
         if (c) constellations.push(c);
       }
       for (const c of constellations) {
-        c.alpha = Math.min(c.alpha + dt * .3, c.maxAlpha);
         c.pulse += dt;
         // 淘汰旧的
         c.life = (c.life || 1) - dt * .004;
-        if (c.life <= 0) c.alpha = Math.max(0, c.alpha - dt * .1);
+        if (c.life > 0) {
+          c.alpha = Math.min(c.alpha + dt * .3, c.maxAlpha);
+        } else {
+          c.alpha = Math.max(0, c.alpha - dt * .1);
+        }
       }
       constellations = constellations.filter(c => c.alpha > .001);
 
