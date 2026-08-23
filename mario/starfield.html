@@ -149,6 +149,7 @@
       constellationChance: 0.2,// 星座生成概率
       twinkleSpeed: 2,
       moon: true,              // 显示月亮
+      sun: true,               // 显示太阳
       planets: 2,              // 行星数量
     };
 
@@ -206,7 +207,7 @@
     function updateStarCount() {
       const cName = constellations.filter(c => c.name).map(c => c.name).join(' ');
       starCountEl.textContent = `✦ ${stars.length} ╱ ${constellations.filter(c => c.name).length} 星座`;
-      extraInfoEl.textContent = `${planets.length} 行星 · ${meteorRain ? '☄ 流星雨' : ''}`;
+      extraInfoEl.textContent = `${CONFIG.sun ? '☀ 太阳 · ' : ''}${planets.length} 行星 · ${meteorRain ? '☄ 流星雨' : ''}`;
     }
 
     // ─── 流星 ─────────────────────────────────────
@@ -325,6 +326,58 @@
         ctx.fill();
       }
       ctx.globalAlpha = 1;
+    }
+
+    // ─── 太阳 ─────────────────────────────────────
+    const sun = { x: .5, y: .14, radius: 48 };
+    function drawSun() {
+      const sx = sun.x * W;
+      const sy = sun.y * H;
+      const r = sun.radius;
+      const breathe = 1 + Math.sin(time * .6) * .05;
+
+      // 大范围光晕（呼吸脉动）
+      const glowR = r * 7 * breathe;
+      const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
+      glow.addColorStop(0, 'rgba(255, 200, 100, .22)');
+      glow.addColorStop(.35, 'rgba(255, 160, 60, .08)');
+      glow.addColorStop(1, 'rgba(255, 140, 40, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
+
+      // 日冕光芒（缓慢旋转 + 长短脉动）
+      const rays = 12;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(time * .05);
+      for (let i = 0; i < rays; i++) {
+        const angle = (i / rays) * Math.PI * 2;
+        const len = r * (2.2 + Math.sin(time * .8 + i * 1.7) * .8);
+        const rayGrad = ctx.createLinearGradient(
+          Math.cos(angle) * r, Math.sin(angle) * r,
+          Math.cos(angle) * len, Math.sin(angle) * len
+        );
+        rayGrad.addColorStop(0, 'rgba(255, 210, 120, .5)');
+        rayGrad.addColorStop(1, 'rgba(255, 170, 60, 0)');
+        ctx.strokeStyle = rayGrad;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * r * 1.05, Math.sin(angle) * r * 1.05);
+        ctx.lineTo(Math.cos(angle) * len, Math.sin(angle) * len);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 日面（白黄核心 → 橙色边缘）
+      const disc = ctx.createRadialGradient(sx - r * .25, sy - r * .25, r * .1, sx, sy, r);
+      disc.addColorStop(0, '#fffdf0');
+      disc.addColorStop(.55, '#ffe9a8');
+      disc.addColorStop(.85, '#ffc85c');
+      disc.addColorStop(1, '#ff9d3c');
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.fillStyle = disc;
+      ctx.fill();
     }
 
     // ─── 行星 ─────────────────────────────────────
@@ -531,6 +584,9 @@
         ctx.fillStyle = grd;
         ctx.fillRect(0, 0, W, H);
       }
+
+      // 太阳
+      if (CONFIG.sun) drawSun();
 
       // 月亮
       if (CONFIG.moon) drawMoon();
