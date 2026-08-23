@@ -387,6 +387,8 @@ function drawSky() {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  drawMoon();
+
   ctx.fillStyle = "rgba(255,255,255,.85)";
   const cloudDefs = [[60, 60, 1], [300, 90, 1.4], [620, 50, 1], [1000, 110, 1.6], [1400, 70, 1.2], [2100, 90, 1.4], [2600, 60, 1], [3200, 100, 1.6], [3700, 70, 1.2]];
   for (const [cx, cy, s] of cloudDefs) {
@@ -395,6 +397,36 @@ function drawSky() {
     const c = (ox, oy, r) => { ctx.beginPath(); ctx.arc(ox, oy, r, 0, 7); ctx.fill(); };
     c(x, cy, 24 * s); c(x + 22 * s, cy - 10 * s, 18 * s); c(x + 42 * s, cy, 20 * s); c(x + 20 * s, cy + 6 * s, 20 * s);
   }
+}
+
+function drawMoon() {
+  const x = canvas.width - 110;
+  const y = 84;
+  const r = 42;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, 7);
+  ctx.clip();
+
+  const g = ctx.createRadialGradient(x - 12, y - 12, 6, x, y, r);
+  g.addColorStop(0, "#ffffff");
+  g.addColorStop(1, "#e8e0c8");
+  ctx.fillStyle = g;
+  ctx.fillRect(x - r, y - r, r * 2, r * 2);
+
+  ctx.fillStyle = "rgba(0,0,0,.08)";
+  const craters = [[-16, -10, 7], [12, -18, 5], [10, 14, 9], [-22, 16, 4]];
+  for (const [cx, cy, cr] of craters) {
+    ctx.beginPath();
+    ctx.arc(x + cx, y + cy, cr, 0, 7);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = "rgba(120,90,50,.75)";
+  ctx.font = "bold 12px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("我在地球", x, y + 4);
+  ctx.restore();
 }
 
 function drawBackground() {
