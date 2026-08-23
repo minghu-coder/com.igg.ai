@@ -326,6 +326,18 @@
         ctx.fill();
       }
       ctx.globalAlpha = 1;
+
+      // "我在地球" 文字（裁剪在月盘内）
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(mx, my, r, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(120, 90, 50, .8)';
+      ctx.font = 'bold 14px "Segoe UI", system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('我在地球', mx, my);
+      ctx.restore();
     }
 
     // ─── 太阳 ─────────────────────────────────────
