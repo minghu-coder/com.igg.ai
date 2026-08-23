@@ -388,6 +388,7 @@ function drawSky() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   drawMoon();
+  drawEarthBall();
 
   ctx.fillStyle = "rgba(255,255,255,.85)";
   const cloudDefs = [[60, 60, 1], [300, 90, 1.4], [620, 50, 1], [1000, 110, 1.6], [1400, 70, 1.2], [2100, 90, 1.4], [2600, 60, 1], [3200, 100, 1.6], [3700, 70, 1.2]];
@@ -426,6 +427,50 @@ function drawMoon() {
   ctx.font = "bold 12px monospace";
   ctx.textAlign = "center";
   ctx.fillText("我在地球", x, y + 4);
+  ctx.restore();
+}
+
+function drawEarthBall() {
+  const mx = canvas.width - 110;  // 月亮中心 x
+  const my = 84;                   // 月亮中心 y
+  const r = 42;                    // 月亮半径
+  const bx = mx - r - 22;          // 小球在月亮左侧
+  const by = my + 10;
+  const br = 12;
+  ctx.save();
+
+  // 发光
+  const glow = ctx.createRadialGradient(bx, by, 0, bx, by, br * 3);
+  glow.addColorStop(0, "rgba(100,180,255,.15)");
+  glow.addColorStop(1, "rgba(100,180,255,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(bx - br * 3, by - br * 3, br * 6, br * 6);
+
+  // 地球本体
+  const g = ctx.createRadialGradient(bx - 3, by - 3, 2, bx, by, br);
+  g.addColorStop(0, "#5cb8e8");
+  g.addColorStop(0.5, "#3c9ed8");
+  g.addColorStop(1, "#1a6b9e");
+  ctx.beginPath();
+  ctx.arc(bx, by, br, 0, 7);
+  ctx.fillStyle = g;
+  ctx.fill();
+
+  // 大陆（绿色小斑点）
+  ctx.fillStyle = "#4fb02e";
+  const lands = [[-4, -2, 4], [3, -5, 3], [1, 4, 3], [-6, 3, 2], [5, 0, 2]];
+  for (const [lx, ly, lr] of lands) {
+    ctx.beginPath();
+    ctx.arc(bx + lx, by + ly, lr, 0, 7);
+    ctx.fill();
+  }
+
+  // 高光
+  ctx.fillStyle = "rgba(255,255,255,.35)";
+  ctx.beginPath();
+  ctx.arc(bx - 4, by - 4, 5, 0, 7);
+  ctx.fill();
+
   ctx.restore();
 }
 
