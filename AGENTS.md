@@ -2,11 +2,10 @@
 
 ## Project
 - com.igg.ai — an AI chat assistant, full-stack web app.
-- Early-stage: no commits yet; no source files, package manifest, or build config exist.
+- Early-stage: product not scaffolded yet (no package manifest or build config); only runnable code is the Mario demo in `mario/index.html` plus `mario/starfield.html`.
 
 ## Status
-- Project intent is established (AI chat assistant product site); tech stack is planned but undecided.
-- README exists (early-stage, with placeholders); codebase not yet created; AGENTS.md should be updated as the repo grows.
+- README exists (early-stage, with placeholders); AGENTS.md should be updated as the repo grows.
 
 ## Environment
 - Windows, PowerShell (pwsh) shell.
