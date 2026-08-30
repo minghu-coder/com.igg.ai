@@ -1,0 +1,2333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>地球 3D · 蓝色星球 · EARTH 3D</title>
+  <style>
+    /* ==========================================================================
+       基础与全局变量
+       ========================================================================== */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    :root {
+      --bg-space: #010206;
+      --primary: #38bdf8;
+      --primary-glow: rgba(56, 189, 248, 0.45);
+      --accent: #818cf8;
+      --accent-gold: #fbbf24;
+      --text-main: #f8fafc;
+      --text-dim: #94a3b8;
+      --panel-bg: rgba(15, 23, 42, 0.78);
+      --panel-border: rgba(255, 255, 255, 0.14);
+      --panel-blur: blur(16px);
+      --radius: 12px;
+      --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: var(--bg-space);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      color: var(--text-main);
+      touch-action: none;
+    }
+    canvas#glCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 1;
+      cursor: grab;
+    }
+    canvas#glCanvas:active {
+      cursor: grabbing;
+    }
+
+    /* 2D 辅助渲染层 (星空背景、航线飞线、卫星、月球) */
+    canvas#overlayCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* ==========================================================================
+       UI 界面覆盖层 (HUD Layer)
+       ========================================================================== */
+    .hud-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px;
+    }
+    .hud-interactive {
+      pointer-events: auto;
+    }
+
+    /* 顶部导航栏 */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .logo-badge {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--panel-bg);
+      backdrop-filter: var(--panel-blur);
+      -webkit-backdrop-filter: var(--panel-blur);
+      padding: 10px 18px;
+      border-radius: 9999px;
+      border: 1px solid var(--panel-border);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .logo-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #60a5fa, #1d4ed8 70%, #0f172a);
+      box-shadow: 0 0 14px var(--primary-glow);
+      position: relative;
+      overflow: hidden;
+      animation: globeSpinPreview 12s linear infinite;
+    }
+    @keyframes globeSpinPreview {
+      0% { filter: hue-rotate(0deg); }
+      100% { filter: hue-rotate(360deg); }
+    }
+    .logo-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #fff 30%, #93c5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .logo-subtitle {
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 1px;
+    }
+
+    /* 快速页面切换胶囊 */
+    .portal-nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--panel-bg);
+      backdrop-filter: var(--panel-blur);
+      -webkit-backdrop-filter: var(--panel-blur);
+      padding: 4px;
+      border-radius: 9999px;
+      border: 1px solid var(--panel-border);
+    }
+    .portal-link {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 12px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .portal-link:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .portal-link.active {
+      background: rgba(56, 189, 248, 0.2);
+      color: var(--primary);
+      font-weight: 600;
+      box-shadow: 0 0 12px var(--primary-glow);
+    }
+
+    /* 搜索栏与工具操作 */
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .search-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .search-input {
+      background: var(--panel-bg);
+      backdrop-filter: var(--panel-blur);
+      -webkit-backdrop-filter: var(--panel-blur);
+      border: 1px solid var(--panel-border);
+      color: var(--text-main);
+      padding: 8px 16px 8px 36px;
+      border-radius: 9999px;
+      font-size: 13px;
+      width: 180px;
+      transition: var(--transition);
+      outline: none;
+    }
+    .search-input:focus {
+      width: 240px;
+      border-color: var(--primary);
+      box-shadow: 0 0 16px var(--primary-glow);
+    }
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      color: var(--text-dim);
+      font-size: 14px;
+      pointer-events: none;
+    }
+    .search-results {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      right: 0;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: var(--panel-blur);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      max-height: 240px;
+      overflow-y: auto;
+      display: none;
+      flex-direction: column;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+      z-index: 100;
+    }
+    .search-results.active {
+      display: flex;
+    }
+    .search-item {
+      padding: 10px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      transition: background 0.15s;
+    }
+    .search-item:hover {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--primary);
+    }
+    .search-item-country {
+      color: var(--text-dim);
+      font-size: 11px;
+    }
+
+    .btn-icon {
+      background: var(--panel-bg);
+      backdrop-filter: var(--panel-blur);
+      -webkit-backdrop-filter: var(--panel-blur);
+      border: 1px solid var(--panel-border);
+      color: var(--text-main);
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      transition: var(--transition);
+    }
+    .btn-icon:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      box-shadow: 0 0 14px var(--primary-glow);
+      transform: translateY(-2px);
+    }
+    .btn-icon.active {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* 左侧控制栏（视角/图层/模式） */
+    .main-body {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-top: 16px;
+      flex: 1;
+      pointer-events: none;
+    }
+    .sidebar-left {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 220px;
+    }
+    .control-card {
+      background: var(--panel-bg);
+      backdrop-filter: var(--panel-blur);
+      -webkit-backdrop-filter: var(--panel-blur);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--primary);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .mode-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .mode-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-dim);
+      padding: 8px 6px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      transition: var(--transition);
+    }
+    .mode-btn .icon {
+      font-size: 16px;
+    }
+    .mode-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .mode-btn.active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--primary);
+      color: var(--primary);
+      box-shadow: 0 0 12px var(--primary-glow);
+    }
+
+    /* 图层开关 */
+    .toggle-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toggle-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-dim);
+      cursor: pointer;
+      padding: 4px 0;
+      transition: color 0.2s;
+    }
+    .toggle-item:hover {
+      color: var(--text-main);
+    }
+    .switch {
+      position: relative;
+      width: 32px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 9999px;
+      transition: var(--transition);
+    }
+    .switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      border-radius: 50%;
+      transition: var(--transition);
+    }
+    .toggle-item.checked .switch {
+      background: var(--primary);
+    }
+    .toggle-item.checked .switch::after {
+      transform: translateX(14px);
+    }
+
+    /* 右侧信息面板 / 城市卡片 */
+    .sidebar-right {
+      width: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .telemetry-card {
+      background: var(--panel-bg);
+      backdrop-filter: var(--panel-blur);
+      -webkit-backdrop-filter: var(--panel-blur);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      padding: 14px;
+      font-family: 'SF Mono', Consolas, Monaco, monospace;
+      font-size: 11px;
+      line-height: 1.6;
+      color: var(--text-dim);
+    }
+    .telemetry-row {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+      padding: 4px 0;
+    }
+    .telemetry-val {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .city-card {
+      background: var(--panel-bg);
+      backdrop-filter: var(--panel-blur);
+      -webkit-backdrop-filter: var(--panel-blur);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+      transition: var(--transition);
+      display: none;
+      animation: cardSlideIn 0.3s ease;
+    }
+    .city-card.active {
+      display: block;
+    }
+    @keyframes cardSlideIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .city-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+    .city-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .city-subname {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .city-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 2px 6px;
+    }
+    .city-close-btn:hover {
+      color: #fff;
+    }
+    .city-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--primary);
+      border: 1px solid var(--primary-glow);
+      border-radius: 4px;
+      font-size: 11px;
+      margin-bottom: 10px;
+    }
+    .city-desc {
+      font-size: 12px;
+      line-height: 1.6;
+      color: #cbd5e1;
+      margin-bottom: 14px;
+    }
+    .city-metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .city-metric-box {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 6px;
+      padding: 8px;
+      text-align: center;
+    }
+    .city-metric-label {
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+    .city-metric-val {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-top: 2px;
+    }
+    .flyto-btn {
+      width: 100%;
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      border: none;
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: var(--transition);
+    }
+    .flyto-btn:hover {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
+      box-shadow: 0 0 16px var(--primary-glow);
+    }
+
+    /* 底部时间轴与操作栏 */
+    .footer {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .time-control-bar {
+      background: var(--panel-bg);
+      backdrop-filter: var(--panel-blur);
+      -webkit-backdrop-filter: var(--panel-blur);
+      border: 1px solid var(--panel-border);
+      border-radius: 9999px;
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .play-btn {
+      background: transparent;
+      border: none;
+      color: var(--primary);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s;
+    }
+    .play-btn:hover {
+      transform: scale(1.15);
+    }
+    .time-label {
+      font-family: 'SF Mono', Consolas, Monaco, monospace;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      min-width: 110px;
+    }
+    .slider-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .time-slider {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    .time-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent-gold);
+      box-shadow: 0 0 10px rgba(251, 191, 36, 0.8);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+    .time-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.3);
+    }
+    .sync-realtime-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-dim);
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 11px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: var(--transition);
+    }
+    .sync-realtime-btn:hover {
+      background: rgba(56, 189, 248, 0.2);
+      color: var(--primary);
+      border-color: var(--primary);
+    }
+    .sync-realtime-btn.active {
+      background: rgba(56, 189, 248, 0.2);
+      color: var(--primary);
+      border-color: var(--primary);
+    }
+
+    /* 快捷城市圆标卡 */
+    .quick-cities {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .city-chip {
+      background: var(--panel-bg);
+      backdrop-filter: var(--panel-blur);
+      -webkit-backdrop-filter: var(--panel-blur);
+      border: 1px solid var(--panel-border);
+      color: var(--text-dim);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .city-chip:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--primary);
+      color: var(--text-main);
+      transform: translateY(-2px);
+    }
+    .city-chip.active {
+      background: rgba(56, 189, 248, 0.25);
+      border-color: var(--primary);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* 模态弹窗（地球参数百科 / 快捷键帮助） */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-backdrop.active {
+      display: flex;
+    }
+    .modal-box {
+      background: #0f172a;
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      max-width: 540px;
+      width: 100%;
+      padding: 24px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+      animation: modalPop 0.25s ease-out;
+      position: relative;
+    }
+    @keyframes modalPop {
+      from { opacity: 0; transform: scale(0.92); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 20px;
+      cursor: pointer;
+    }
+    .modal-close:hover {
+      color: #fff;
+    }
+    .modal-content {
+      font-size: 13px;
+      line-height: 1.7;
+      color: #cbd5e1;
+    }
+    .spec-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .spec-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 10px 14px;
+      border-radius: 8px;
+    }
+    .spec-item-title {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .spec-item-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary);
+      margin-top: 2px;
+    }
+
+    /* 3D 城市图钉与标签 (Screen Project Pin) */
+    .city-pin-container {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+      overflow: hidden;
+    }
+    .globe-pin {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      pointer-events: auto;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .globe-pin:hover {
+      transform: translate(-50%, -115%) scale(1.15);
+      z-index: 50;
+    }
+    .pin-label {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.5);
+      backdrop-filter: blur(6px);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      margin-bottom: 3px;
+    }
+    .pin-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--primary);
+      border: 2px solid #fff;
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--primary);
+      position: relative;
+    }
+    .pin-dot::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border: 1px solid var(--primary);
+      border-radius: 50%;
+      animation: pinPulse 2s infinite ease-out;
+    }
+    @keyframes pinPulse {
+      0% { transform: scale(0.6); opacity: 1; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+
+    /* 移动端适配 */
+    @media (max-width: 768px) {
+      .hud-overlay {
+        padding: 12px;
+      }
+      .sidebar-left {
+        width: 160px;
+      }
+      .sidebar-right {
+        position: fixed;
+        right: 12px;
+        top: 70px;
+        width: 260px;
+        z-index: 100;
+      }
+      .telemetry-card {
+        display: none;
+      }
+      .search-box {
+        display: none;
+      }
+      .logo-title {
+        font-size: 14px;
+      }
+      .time-control-bar {
+        padding: 6px 14px;
+      }
+      .portal-nav {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- WebGL 3D 核心画布 -->
+  <canvas id="glCanvas"></canvas>
+
+  <!-- 2D 辅助渲染层 (深空星云、洲际航线弧线、人造卫星与空间站) -->
+  <canvas id="overlayCanvas"></canvas>
+
+  <!-- 3D 地理图钉层 -->
+  <div class="city-pin-container" id="pinContainer"></div>
+
+  <!-- HUD 交互层 -->
+  <div class="hud-overlay">
+    
+    <!-- 顶部导航栏 -->
+    <header class="header">
+      <div class="logo-badge hud-interactive">
+        <div class="logo-icon"></div>
+        <div>
+          <div class="logo-title">EARTH 3D · 蓝色星球</div>
+          <div class="logo-subtitle">全景空间地球观测与探索系统</div>
+        </div>
+      </div>
+
+      <!-- 快速导航入口 -->
+      <nav class="portal-nav hud-interactive">
+        <a href="earth.html" class="portal-link active">🌍 3D 地球</a>
+        <a href="mario/starfield.html" class="portal-link">✨ 星空漫步</a>
+        <a href="mario/index.html" class="portal-link">🍄 马里奥</a>
+      </nav>
+
+      <div class="header-actions hud-interactive">
+        <!-- 城市搜索 -->
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" id="citySearchInput" placeholder="搜索城市或地区..." />
+          <div class="search-results" id="searchResults"></div>
+        </div>
+
+        <button class="btn-icon" id="btnAudio" title="空间音效 开/关">🔊</button>
+        <button class="btn-icon" id="btnResetView" title="重置视角">⟲</button>
+        <button class="btn-icon" id="btnCapture" title="截图保存壁纸">📸</button>
+        <button class="btn-icon" id="btnInfo" title="地球百科与参数">ℹ️</button>
+        <button class="btn-icon" id="btnFullscreen" title="全屏模式">⛶</button>
+      </div>
+    </header>
+
+    <!-- 中部内容主体 (左右控制台) -->
+    <div class="main-body">
+      <!-- 左侧渲染模式与图层控制 -->
+      <aside class="sidebar-left hud-interactive">
+        <div class="control-card">
+          <div class="card-title">视觉风格</div>
+          <div class="mode-buttons">
+            <button class="mode-btn active" data-mode="realistic">
+              <span class="icon">🌍</span>
+              <span>经典真实</span>
+            </button>
+            <button class="mode-btn" data-mode="night">
+              <span class="icon">🌃</span>
+              <span>夜景灯火</span>
+            </button>
+            <button class="mode-btn" data-mode="cyber">
+              <span class="icon">🌐</span>
+              <span>全息科技</span>
+            </button>
+            <button class="mode-btn" data-mode="climate">
+              <span class="icon">🌡️</span>
+              <span>洋流气候</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="control-card">
+          <div class="card-title">图层与特效</div>
+          <div class="toggle-list">
+            <div class="toggle-item checked" data-toggle="clouds">
+              <span>动态云层与阴影</span>
+              <div class="switch"></div>
+            </div>
+            <div class="toggle-item checked" data-toggle="atmosphere">
+              <span>大气散射辉光</span>
+              <div class="switch"></div>
+            </div>
+            <div class="toggle-item checked" data-toggle="pins">
+              <span>全球名城地标</span>
+              <div class="switch"></div>
+            </div>
+            <div class="toggle-item checked" data-toggle="flights">
+              <span>洲际航线数据流</span>
+              <div class="switch"></div>
+            </div>
+            <div class="toggle-item checked" data-toggle="satellites">
+              <span>空间站与卫星轨道</span>
+              <div class="switch"></div>
+            </div>
+            <div class="toggle-item" data-toggle="grid">
+              <span>经纬度网格线</span>
+              <div class="switch"></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 右侧遥测数据与城市详情 -->
+      <aside class="sidebar-right hud-interactive">
+        <!-- 实时遥测数据 -->
+        <div class="telemetry-card">
+          <div style="font-weight: 700; color: #fff; margin-bottom: 8px; font-size: 12px;">遥测监测站 (TELEMETRY)</div>
+          <div class="telemetry-row">
+            <span>光标经纬度</span>
+            <span class="telemetry-val" id="teleCoords">--°N, --°E</span>
+          </div>
+          <div class="telemetry-row">
+            <span>观测距离</span>
+            <span class="telemetry-val" id="teleAltitude">12,742 km</span>
+          </div>
+          <div class="telemetry-row">
+            <span>太阳赤纬角</span>
+            <span class="telemetry-val" id="teleSunAngle">+11.4°</span>
+          </div>
+          <div class="telemetry-row">
+            <span>自转角速度</span>
+            <span class="telemetry-val" id="teleRotationSpeed">15.0°/h</span>
+          </div>
+          <div class="telemetry-row">
+            <span>渲染帧率 (FPS)</span>
+            <span class="telemetry-val" id="teleFPS">60.0</span>
+          </div>
+        </div>
+
+        <!-- 选中的城市卡片 -->
+        <div class="city-card" id="cityCard">
+          <div class="city-header">
+            <div>
+              <div class="city-name" id="cityName">北京</div>
+              <div class="city-subname" id="citySubname">Beijing, China</div>
+            </div>
+            <button class="city-close-btn" id="btnCloseCityCard">&times;</button>
+          </div>
+          <div class="city-badge" id="cityBadge">亚洲 · 东八区 (UTC+8)</div>
+          <div class="city-desc" id="cityDesc">中华人民共和国首都，历史悠久的千年古都，现代化国际大都市与政治文化中心。</div>
+          <div class="city-metrics">
+            <div class="city-metric-box">
+              <div class="city-metric-label">常住人口</div>
+              <div class="city-metric-val" id="cityPop">2,189 万</div>
+            </div>
+            <div class="city-metric-box">
+              <div class="city-metric-label">地理坐标</div>
+              <div class="city-metric-val" id="cityCoords">39.9°N, 116.4°E</div>
+            </div>
+          </div>
+          <button class="flyto-btn" id="btnFlyToCity">
+            <span>🎯</span> 锁定并平滑巡航
+          </button>
+        </div>
+      </aside>
+    </div>
+
+    <!-- 底部时间轴与快捷探索 -->
+    <footer class="footer hud-interactive">
+      <div class="quick-cities" id="quickCities">
+        <button class="city-chip active" data-city="beijing">🇨🇳 北京</button>
+        <button class="city-chip" data-city="shanghai">🇨🇳 上海</button>
+        <button class="city-chip" data-city="tokyo">🇯🇵 东京</button>
+        <button class="city-chip" data-city="singapore">🇸🇬 新加坡</button>
+        <button class="city-chip" data-city="dubai">🇦🇪 迪拜</button>
+        <button class="city-chip" data-city="paris">🇫🇷 巴黎</button>
+        <button class="city-chip" data-city="london">🇬🇧 伦敦</button>
+        <button class="city-chip" data-city="newyork">🇺🇸 纽约</button>
+        <button class="city-chip" data-city="sanfrancisco">🇺🇸 旧金山</button>
+        <button class="city-chip" data-city="sydney">🇦🇺 悉尼</button>
+        <button class="city-chip" data-city="riodejaneiro">🇧🇷 里约热内卢</button>
+        <button class="city-chip" data-city="cairo">🇪🇬 开罗</button>
+        <button class="city-chip" data-city="southpole">🇦🇶 南极站</button>
+      </div>
+
+      <div class="time-control-bar">
+        <button class="play-btn" id="btnAutoRotate" title="自动自转">⏸</button>
+        <div class="time-label" id="timeLabel">UTC 12:00:00</div>
+        <div class="slider-container">
+          <input type="range" class="time-slider" id="timeSlider" min="0" max="1440" value="720" step="1" />
+        </div>
+        <button class="sync-realtime-btn active" id="btnSyncRealtime">⚡ 实时同步太阳</button>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- 地球百科与快捷键说明弹窗 -->
+  <div class="modal-backdrop" id="infoModal">
+    <div class="modal-box">
+      <div class="modal-title">
+        <span>🌍 地球科学百科与控制指南</span>
+        <button class="modal-close" id="btnCloseModal">&times;</button>
+      </div>
+      <div class="modal-content">
+        <p><strong>地球 (The Earth)</strong> 是太阳系由内及外的第三颗行星，也是目前已知宇宙中唯一孕育生命的天体。本系统采用 WebGL 3D 原生着色器与大气散射光线追踪构建。</p>
+        
+        <div class="spec-grid">
+          <div class="spec-item">
+            <div class="spec-item-title">平均半径</div>
+            <div class="spec-item-value">6,371.0 km</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-item-title">赤道周长</div>
+            <div class="spec-item-value">40,075 km</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-item-title">表面积 (海洋 71%)</div>
+            <div class="spec-item-value">5.10 × 10⁸ km²</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-item-title">总质量</div>
+            <div class="spec-item-value">5.972 × 10²⁴ kg</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-item-title">公转平均速率</div>
+            <div class="spec-item-value">29.78 km/s</div>
+          </div>
+          <div class="spec-item">
+            <div class="spec-item-title">大气层主要成分</div>
+            <div class="spec-item-value">N₂ 78% · O₂ 21%</div>
+          </div>
+        </div>
+
+        <div style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+          <div style="font-weight: 600; color: var(--primary); margin-bottom: 6px;">🎮 快捷键操作指南：</div>
+          <ul style="padding-left: 18px; line-height: 1.8;">
+            <li><strong>鼠标左键拖拽 / 单指滑动</strong>：全向旋转观察地球</li>
+            <li><strong>滚轮滑动 / 双指捏合</strong>：平滑缩放视距</li>
+            <li><strong>点击城市图钉或搜索</strong>：镜头自动平滑运镜巡航</li>
+            <li><strong>空格键 (Space)</strong>：暂停 / 继续自动自转</li>
+            <li><strong>R 键</strong>：重置默认太空视角</li>
+            <li><strong>H 键</strong>：隐藏 / 呼出 HUD 界面</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       核心 WebGL 3D 渲染引擎与交互逻辑
+       ========================================================================== -->
+  <script>
+  (function() {
+    'use strict';
+
+    // ─────────────────────────────────────────────────────────────
+    // 1. 全球著名城市与地标数据库
+    // ─────────────────────────────────────────────────────────────
+    const CITIES = [
+      { id: 'beijing', name: '北京', subname: 'Beijing, China', lat: 39.9042, lon: 116.4074, pop: '2,189 万', badge: '亚洲 · 东八区 (UTC+8)', desc: '中华人民共和国首都，历史悠久的千年古都，现代化国际大都市与政治文化中心。' },
+      { id: 'shanghai', name: '上海', subname: 'Shanghai, China', lat: 31.2304, lon: 121.4737, pop: '2,487 万', badge: '亚洲 · 国际金融中心', desc: '中国第一大经济中心，全球最大的集装箱港口之一，东方明珠与外滩万国建筑博览群所在地。' },
+      { id: 'tokyo', name: '东京', subname: 'Tokyo, Japan', lat: 35.6762, lon: 139.6503, pop: '3,740 万', badge: '亚洲 · 全球最大都市圈', desc: '日本首都，全球经济与科技先锋之都，繁华璀璨的夜景与潮流文化策源地。' },
+      { id: 'singapore', name: '新加坡', subname: 'Singapore', lat: 1.3521, lon: 103.8198, pop: '592 万', badge: '东南亚 · 花园城市与枢纽', desc: '连接太平洋与印度洋的咽喉要道，马六甲海峡明珠，全球顶尖航空与航运枢纽。' },
+      { id: 'dubai', name: '迪拜', subname: 'Dubai, UAE', lat: 25.2048, lon: 55.2708, pop: '350 万', badge: '中东 · 奢华未来绿洲', desc: '阿联酋最大城市，哈利法塔与棕榈岛所在地，沙漠中崛起的世界顶级商业与旅游之都。' },
+      { id: 'paris', name: '巴黎', subname: 'Paris, France', lat: 48.8566, lon: 2.3522, pop: '216 万', badge: '欧洲 · 艺术与浪漫之都', desc: '法国首都，塞纳河畔的文化明珠，埃菲尔铁塔、卢浮宫与全球时尚潮流的中心。' },
+      { id: 'london', name: '伦敦', subname: 'London, UK', lat: 51.5074, lon: -0.1278, pop: '898 万', badge: '欧洲 · 本初子午线所在地', desc: '英国首都，格林尼治标准时间 (GMT) 的起点，拥有千年底蕴的泰晤士河畔国际大都会。' },
+      { id: 'newyork', name: '纽约', subname: 'New York, USA', lat: 40.7128, lon: -74.0060, pop: '846 万', badge: '北美 · 全球不夜城', desc: '美国最大城市与联合国总部所在地，时代广场与华尔街，世界金融的心脏。' },
+      { id: 'sanfrancisco', name: '旧金山', subname: 'San Francisco, USA', lat: 37.7749, lon: -122.4194, pop: '87 万', badge: '北美 · 硅谷科技门户', desc: '金门大桥与硅谷科技摇篮，全球高科技产业、人工智能与创新创业的核心枢纽。' },
+      { id: 'sydney', name: '悉尼', subname: 'Sydney, Australia', lat: -33.8688, lon: 151.2093, pop: '531 万', badge: '大洋洲 · 南半球明珠', desc: '澳大利亚第一大城市，世界著名的悉尼歌剧院与海港大桥坐落于此。' },
+      { id: 'riodejaneiro', name: '里约热内卢', subname: 'Rio de Janeiro, Brazil', lat: -22.9068, lon: -43.1729, pop: '674 万', badge: '南美洲 · 桑巴与狂欢之都', desc: '巴西海滨名城，科尔科瓦多山上的基督救世主雕像与世界著名的狂欢节胜地。' },
+      { id: 'cairo', name: '开罗', subname: 'Cairo, Egypt', lat: 30.0444, lon: 31.2357, pop: '954 万', badge: '非洲 · 尼罗河千年古城', desc: '埃及首都与阿拉伯世界第一大城市，毗邻著名的吉萨金字塔群与狮身人面像。' },
+      { id: 'southpole', name: '阿蒙森-斯科特南极站', subname: 'South Pole Station', lat: -90.0000, lon: 0.0000, pop: '约 50-150 人', badge: '南极洲 · 地球地理南极', desc: '位于地球最南端的终年冰原科学考察基地，极夜极昼天象与宇宙背景辐射观测前哨。' }
+    ];
+
+    // 洲际航线流向
+    const FLIGHT_ROUTES = [
+      { from: 'beijing', to: 'newyork' },
+      { from: 'beijing', to: 'london' },
+      { from: 'beijing', to: 'tokyo' },
+      { from: 'shanghai', to: 'sanfrancisco' },
+      { from: 'tokyo', to: 'sydney' },
+      { from: 'singapore', to: 'london' },
+      { from: 'singapore', to: 'dubai' },
+      { from: 'dubai', to: 'paris' },
+      { from: 'paris', to: 'newyork' },
+      { from: 'london', to: 'riodejaneiro' },
+      { from: 'newyork', to: 'riodejaneiro' },
+      { from: 'cairo', to: 'paris' }
+    ];
+
+    // 人造卫星与空间站定义
+    const SATELLITES = [
+      { name: '中国空间站 (天宫)', alt: 1.15, inc: 41.5, speed: 0.8, color: '#f59e0b', phase: 0 },
+      { name: '国际空间站 (ISS)', alt: 1.18, inc: 51.6, speed: 0.75, color: '#38bdf8', phase: 2.1 },
+      { name: '哈勃望远镜', alt: 1.22, inc: 28.5, speed: 0.65, color: '#a855f7', phase: 4.2 },
+      { name: '星链-Alpha', alt: 1.10, inc: 53.0, speed: 0.9, color: '#10b981', phase: 1.5 }
+    ];
+
+    // ─────────────────────────────────────────────────────────────
+    // 2. 状态管理
+    // ─────────────────────────────────────────────────────────────
+    const STATE = {
+      mode: 'realistic',
+      toggles: {
+        clouds: true,
+        atmosphere: true,
+        pins: true,
+        flights: true,
+        satellites: true,
+        grid: false
+      },
+      timeOfDayMinutes: 720,
+      syncRealtime: true,
+      autoRotate: true,
+      rotationSpeed: 0.04,
+      rotY: 0,
+      rotX: 0.2,
+      zoom: 3.2,
+      targetRotY: 0,
+      targetRotX: 0.2,
+      targetZoom: 3.2,
+      isDragging: false,
+      lastMouseX: 0,
+      lastMouseY: 0,
+      audioEnabled: false,
+      selectedCity: null,
+      hudVisible: true
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // 3. WebGL 初始化与着色器程序
+    // ─────────────────────────────────────────────────────────────
+    const canvas = document.getElementById('glCanvas');
+    const gl = canvas.getContext('webgl', { antialias: true, alpha: false, powerPreference: 'high-performance' }) ||
+               canvas.getContext('experimental-webgl');
+
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    const ctx2d = overlayCanvas.getContext('2d');
+
+    if (!gl) {
+      alert('您的浏览器不支持 WebGL，请开启硬件加速。');
+    }
+
+    const vsSource = `
+      attribute vec3 aPosition;
+      attribute vec3 aNormal;
+      attribute vec2 aTexCoord;
+
+      uniform mat4 uProjectionMatrix;
+      uniform mat4 uModelViewMatrix;
+      uniform mat3 uNormalMatrix;
+
+      varying vec3 vNormal;
+      varying vec3 vPosition;
+      varying vec2 vTexCoord;
+      varying vec3 vViewDir;
+
+      void main(void) {
+        vec4 pos4 = uModelViewMatrix * vec4(aPosition, 1.0);
+        vPosition = pos4.xyz;
+        vNormal = normalize(uNormalMatrix * aNormal);
+        vTexCoord = aTexCoord;
+        vViewDir = normalize(-pos4.xyz);
+        gl_Position = uProjectionMatrix * pos4;
+      }
+    `;
+
+    const fsSource = `
+      precision mediump float;
+
+      varying vec3 vNormal;
+      varying vec3 vPosition;
+      varying vec2 vTexCoord;
+      varying vec3 vViewDir;
+
+      uniform sampler2D uEarthTexture;
+      uniform sampler2D uNightTexture;
+      uniform sampler2D uCloudsTexture;
+      uniform vec3 uSunDirection;
+      uniform int uMode; // 0: realistic, 1: night, 2: cyber, 3: climate
+      uniform float uCloudOffset;
+      uniform float uTime;
+      uniform bool uShowClouds;
+      uniform bool uShowAtmosphere;
+      uniform bool uShowGrid;
+
+      void main(void) {
+        vec3 normal = normalize(vNormal);
+        vec3 viewDir = normalize(vViewDir);
+        vec3 sunDir = normalize(uSunDirection);
+
+        // 经纬网格线
+        float grid = 0.0;
+        if (uShowGrid) {
+          float latLines = abs(fract(vTexCoord.y * 18.0) - 0.5);
+          float lonLines = abs(fract(vTexCoord.x * 36.0) - 0.5);
+          grid = (latLines < 0.03 || lonLines < 0.03) ? 0.3 : 0.0;
+          if (abs(vTexCoord.y - 0.5) < 0.005) grid = 0.8;
+        }
+
+        // 光照漫反射
+        float NdotL = dot(normal, sunDir);
+        float dayFactor = smoothstep(-0.2, 0.25, NdotL);
+        float sunsetFactor = smoothstep(-0.1, 0.1, NdotL) * (1.0 - smoothstep(0.1, 0.3, NdotL));
+
+        vec4 dayColor = texture2D(uEarthTexture, vTexCoord);
+        vec4 nightColor = texture2D(uNightTexture, vTexCoord);
+        
+        vec2 cloudUV = vec2(fract(vTexCoord.x + uCloudOffset), vTexCoord.y);
+        vec4 cloudColor = texture2D(uCloudsTexture, cloudUV);
+
+        vec3 finalColor = vec3(0.0);
+
+        if (uMode == 0) {
+          // 经典真实
+          vec3 sunsetGlow = vec3(1.0, 0.45, 0.1) * sunsetFactor * 0.45;
+          float oceanMask = step(dayColor.g, dayColor.b * 1.05);
+          vec3 halfVec = normalize(sunDir + viewDir);
+          float spec = pow(max(dot(normal, halfVec), 0.0), 32.0) * oceanMask * dayFactor * 0.6;
+          
+          vec3 baseDay = dayColor.rgb + sunsetGlow + vec3(spec);
+          vec3 baseNight = nightColor.rgb * 1.6;
+
+          finalColor = mix(baseNight, baseDay, dayFactor);
+
+          if (uShowClouds) {
+            vec2 shadowUV = vec2(fract(vTexCoord.x + uCloudOffset - 0.004), vTexCoord.y - 0.003);
+            float shadow = texture2D(uCloudsTexture, shadowUV).r * 0.35 * dayFactor;
+            finalColor = finalColor * (1.0 - shadow);
+
+            float cloudDay = cloudColor.r * dayFactor;
+            float cloudNight = cloudColor.r * 0.05;
+            finalColor = mix(finalColor, vec3(1.0, 1.0, 1.0) * max(cloudDay, cloudNight), cloudColor.r * 0.85);
+          }
+
+          if (uShowAtmosphere) {
+            float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 3.0);
+            vec3 atmosColor = mix(vec3(0.1, 0.2, 0.4), vec3(0.2, 0.6, 1.0), dayFactor);
+            finalColor += atmosColor * fresnel * 0.85;
+          }
+
+        } else if (uMode == 1) {
+          // 璀璨夜景
+          vec3 lights = nightColor.rgb * 2.2;
+          float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 2.5);
+          finalColor = lights + dayColor.rgb * 0.08 + vec3(0.05, 0.15, 0.35) * fresnel;
+
+        } else if (uMode == 2) {
+          // 全息科技
+          float edge = pow(1.0 - max(dot(normal, viewDir), 0.0), 2.0);
+          float land = step(0.3, dayColor.g);
+          vec3 cyberColor = vec3(0.05, 0.2, 0.4);
+          if (land > 0.5) cyberColor = vec3(0.1, 0.8, 1.0) * (0.4 + 0.6 * sin(uTime * 2.0 + vTexCoord.y * 40.0));
+          
+          float scan = sin(vPosition.y * 15.0 - uTime * 4.0);
+          scan = smoothstep(0.8, 1.0, scan) * 0.4;
+          
+          finalColor = cyberColor * 0.6 + vec3(0.1, 0.6, 1.0) * edge * 1.5 + vec3(scan);
+
+        } else if (uMode == 3) {
+          // 洋流与气候
+          float lat = abs(vTexCoord.y - 0.5) * 2.0;
+          vec3 heatColor = mix(vec3(0.9, 0.2, 0.1), vec3(0.1, 0.8, 0.3), smoothstep(0.1, 0.5, lat));
+          heatColor = mix(heatColor, vec3(0.2, 0.5, 1.0), smoothstep(0.5, 0.85, lat));
+          heatColor = mix(heatColor, vec3(0.9, 0.95, 1.0), smoothstep(0.85, 1.0, lat));
+          
+          float currents = sin(vTexCoord.x * 60.0 + sin(vTexCoord.y * 30.0) + uTime * 3.0) * 0.5 + 0.5;
+          finalColor = mix(dayColor.rgb * 0.3, heatColor, 0.65) + vec3(currents * 0.15);
+        }
+
+        if (uShowGrid) {
+          finalColor += vec3(0.2, 0.8, 1.0) * grid;
+        }
+
+        gl_FragColor = vec4(finalColor, 1.0);
+      }
+    `;
+
+    function createShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error('着色器编译错误:', gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+      }
+      return shader;
+    }
+
+    const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+    const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+    const program = gl.createProgram();
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+
+    const locations = {
+      aPosition: gl.getAttribLocation(program, 'aPosition'),
+      aNormal: gl.getAttribLocation(program, 'aNormal'),
+      aTexCoord: gl.getAttribLocation(program, 'aTexCoord'),
+      uProjectionMatrix: gl.getUniformLocation(program, 'uProjectionMatrix'),
+      uModelViewMatrix: gl.getUniformLocation(program, 'uModelViewMatrix'),
+      uNormalMatrix: gl.getUniformLocation(program, 'uNormalMatrix'),
+      uEarthTexture: gl.getUniformLocation(program, 'uEarthTexture'),
+      uNightTexture: gl.getUniformLocation(program, 'uNightTexture'),
+      uCloudsTexture: gl.getUniformLocation(program, 'uCloudsTexture'),
+      uSunDirection: gl.getUniformLocation(program, 'uSunDirection'),
+      uMode: gl.getUniformLocation(program, 'uMode'),
+      uCloudOffset: gl.getUniformLocation(program, 'uCloudOffset'),
+      uTime: gl.getUniformLocation(program, 'uTime'),
+      uShowClouds: gl.getUniformLocation(program, 'uShowClouds'),
+      uShowAtmosphere: gl.getUniformLocation(program, 'uShowAtmosphere'),
+      uShowGrid: gl.getUniformLocation(program, 'uShowGrid')
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // 4. 球体网格构建
+    // ─────────────────────────────────────────────────────────────
+    function createSphereGeometry(radius, latBands, lonBands) {
+      const positions = [];
+      const normals = [];
+      const uvs = [];
+      const indices = [];
+
+      for (let lat = 0; lat <= latBands; lat++) {
+        const theta = (lat * Math.PI) / latBands;
+        const sinTheta = Math.sin(theta);
+        const cosTheta = Math.cos(theta);
+
+        for (let lon = 0; lon <= lonBands; lon++) {
+          const phi = (lon * 2 * Math.PI) / lonBands - Math.PI / 2;
+          const sinPhi = Math.sin(phi);
+          const cosPhi = Math.cos(phi);
+
+          const x = cosPhi * sinTheta;
+          const y = cosTheta;
+          const z = sinPhi * sinTheta;
+          const u = 1 - (lon / lonBands);
+          const v = lat / latBands;
+
+          positions.push(radius * x, radius * y, radius * z);
+          normals.push(x, y, z);
+          uvs.push(u, v);
+        }
+      }
+
+      for (let lat = 0; lat < latBands; lat++) {
+        for (let lon = 0; lon < lonBands; lon++) {
+          const first = lat * (lonBands + 1) + lon;
+          const second = first + lonBands + 1;
+
+          indices.push(first, second, first + 1);
+          indices.push(second, second + 1, first + 1);
+        }
+      }
+
+      return {
+        positions: new Float32Array(positions),
+        normals: new Float32Array(normals),
+        uvs: new Float32Array(uvs),
+        indices: new Uint16Array(indices),
+        indexCount: indices.length
+      };
+    }
+
+    const sphereData = createSphereGeometry(1.0, 64, 64);
+
+    const posBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, sphereData.positions, gl.STATIC_DRAW);
+
+    const normBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, normBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, sphereData.normals, gl.STATIC_DRAW);
+
+    const uvBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, uvBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, sphereData.uvs, gl.STATIC_DRAW);
+
+    const indexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, sphereData.indices, gl.STATIC_DRAW);
+
+    // ─────────────────────────────────────────────────────────────
+    // 5. 纹理生成器
+    // ─────────────────────────────────────────────────────────────
+    function generateEarthTextures() {
+      const W = 2048;
+      const H = 1024;
+
+      const cDay = document.createElement('canvas');
+      cDay.width = W;
+      cDay.height = H;
+      const ctxDay = cDay.getContext('2d');
+
+      const cNight = document.createElement('canvas');
+      cNight.width = W;
+      cNight.height = H;
+      const ctxNight = cNight.getContext('2d');
+
+      const cClouds = document.createElement('canvas');
+      cClouds.width = W;
+      cClouds.height = H;
+      const ctxClouds = cClouds.getContext('2d');
+
+      const oceanGrad = ctxDay.createLinearGradient(0, 0, 0, H);
+      oceanGrad.addColorStop(0.0, '#0a2342');
+      oceanGrad.addColorStop(0.15, '#0d3b66');
+      oceanGrad.addColorStop(0.5, '#001e3d');
+      oceanGrad.addColorStop(0.85, '#0d3b66');
+      oceanGrad.addColorStop(1.0, '#0a2342');
+      ctxDay.fillStyle = oceanGrad;
+      ctxDay.fillRect(0, 0, W, H);
+
+      ctxNight.fillStyle = '#020205';
+      ctxNight.fillRect(0, 0, W, H);
+
+      function mapCoord(lon, lat) {
+        return [((lon + 180) / 360) * W, ((90 - lat) / 180) * H];
+      }
+
+      function drawLandMass(coords, biomeColor, hasNightLights = true) {
+        ctxDay.beginPath();
+        const start = mapCoord(coords[0][0], coords[0][1]);
+        ctxDay.moveTo(start[0], start[1]);
+        for (let i = 1; i < coords.length; i++) {
+          const pt = mapCoord(coords[i][0], coords[i][1]);
+          ctxDay.lineTo(pt[0], pt[1]);
+        }
+        ctxDay.closePath();
+
+        ctxDay.shadowColor = 'rgba(56, 189, 248, 0.3)';
+        ctxDay.shadowBlur = 10;
+        ctxDay.fillStyle = biomeColor;
+        ctxDay.fill();
+        ctxDay.shadowBlur = 0;
+
+        if (hasNightLights) {
+          ctxNight.fillStyle = 'rgba(251, 191, 36, 0.6)';
+          for (let i = 0; i < coords.length; i += 2) {
+            const pt = mapCoord(coords[i][0], coords[i][1]);
+            const lightCount = 8 + Math.floor(Math.random() * 14);
+            for (let k = 0; k < lightCount; k++) {
+              const lx = pt[0] + (Math.random() - 0.5) * 60;
+              const ly = pt[1] + (Math.random() - 0.5) * 40;
+              const rad = Math.random() * 2.5 + 0.5;
+              ctxNight.beginPath();
+              ctxNight.arc(lx, ly, rad, 0, Math.PI * 2);
+              ctxNight.fill();
+            }
+          }
+        }
+      }
+
+      // 欧亚大陆
+      drawLandMass([
+        [-10, 36], [0, 44], [15, 55], [30, 70], [60, 73], [100, 76], [140, 72], [170, 66],
+        [160, 55], [140, 50], [130, 42], [120, 32], [115, 22], [105, 10], [98, 8],
+        [80, 15], [70, 24], [60, 25], [50, 30], [35, 32], [28, 41], [15, 38], [-5, 36]
+      ], '#2e5a27');
+
+      // 中国与东亚
+      drawLandMass([
+        [75, 38], [90, 45], [125, 48], [132, 42], [122, 30], [118, 24], [108, 18], [95, 22], [80, 28]
+      ], '#3b6e22');
+
+      // 非洲
+      drawLandMass([
+        [-17, 32], [10, 37], [32, 31], [51, 12], [42, -10], [32, -34], [18, -34], [12, -5],
+        [8, 5], [-15, 12], [-17, 21]
+      ], '#b59a57');
+
+      // 北美洲
+      drawLandMass([
+        [-168, 65], [-140, 70], [-100, 75], [-60, 60], [-65, 45], [-75, 35], [-80, 25],
+        [-90, 18], [-105, 22], [-120, 34], [-125, 48], [-140, 58], [-165, 60]
+      ], '#38662c');
+
+      // 南美洲
+      drawLandMass([
+        [-80, 8], [-60, 12], [-35, -5], [-40, -22], [-55, -38], [-70, -55], [-75, -45],
+        [-72, -18], [-80, -2]
+      ], '#1e4d2b');
+
+      // 澳大利亚
+      drawLandMass([
+        [113, -22], [130, -12], [145, -15], [153, -28], [148, -38], [135, -35], [115, -35]
+      ], '#b46d3b');
+
+      // 南极
+      drawLandMass([
+        [-180, -70], [-90, -68], [0, -65], [90, -68], [180, -70], [180, -90], [-180, -90]
+      ], '#e2e8f0', false);
+
+      // 格陵兰
+      drawLandMass([
+        [-50, 60], [-20, 70], [-30, 83], [-55, 82], [-60, 72]
+      ], '#f1f5f9', false);
+
+      // 城市夜灯光晕
+      CITIES.forEach(c => {
+        const pt = mapCoord(c.lon, c.lat);
+        const rad = ctxNight.createRadialGradient(pt[0], pt[1], 0, pt[0], pt[1], 24);
+        rad.addColorStop(0, '#ffffff');
+        rad.addColorStop(0.2, '#fef08a');
+        rad.addColorStop(0.6, 'rgba(245, 158, 11, 0.7)');
+        rad.addColorStop(1, 'rgba(245, 158, 11, 0)');
+        ctxNight.fillStyle = rad;
+        ctxNight.beginPath();
+        ctxNight.arc(pt[0], pt[1], 24, 0, Math.PI * 2);
+        ctxNight.fill();
+      });
+
+      // 气象云层
+      ctxClouds.fillStyle = '#000000';
+      ctxClouds.fillRect(0, 0, W, H);
+      for (let i = 0; i < 90; i++) {
+        const cx = Math.random() * W;
+        const cy = H * 0.15 + Math.random() * (H * 0.7);
+        const rw = 80 + Math.random() * 220;
+        const rh = 20 + Math.random() * 60;
+        const grad = ctxClouds.createRadialGradient(cx, cy, 0, cx, cy, rw);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
+        grad.addColorStop(0.4, 'rgba(255, 255, 255, 0.45)');
+        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctxClouds.fillStyle = grad;
+        ctxClouds.beginPath();
+        ctxClouds.ellipse(cx, cy, rw, rh, (Math.random() - 0.5) * 0.4, 0, Math.PI * 2);
+        ctxClouds.fill();
+      }
+
+      function uploadTexture(imageSource) {
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageSource);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        return tex;
+      }
+
+      return {
+        earthTex: uploadTexture(cDay),
+        nightTex: uploadTexture(cNight),
+        cloudsTex: uploadTexture(cClouds)
+      };
+    }
+
+    const textures = generateEarthTextures();
+
+    // ─────────────────────────────────────────────────────────────
+    // 6. 3D 矩阵运算
+    // ─────────────────────────────────────────────────────────────
+    const Mat4 = {
+      create() {
+        return new Float32Array([
+          1, 0, 0, 0,
+          0, 1, 0, 0,
+          0, 0, 1, 0,
+          0, 0, 0, 1
+        ]);
+      },
+      perspective(out, fovy, aspect, near, far) {
+        const f = 1.0 / Math.tan(fovy / 2);
+        const nf = 1 / (near - far);
+        out[0] = f / aspect;
+        out[1] = 0;
+        out[2] = 0;
+        out[3] = 0;
+        out[4] = 0;
+        out[5] = f;
+        out[6] = 0;
+        out[7] = 0;
+        out[8] = 0;
+        out[9] = 0;
+        out[10] = (far + near) * nf;
+        out[11] = -1;
+        out[12] = 0;
+        out[13] = 0;
+        out[14] = 2 * far * near * nf;
+        out[15] = 0;
+        return out;
+      },
+      identity(out) {
+        for (let i = 0; i < 16; i++) out[i] = (i % 5 === 0) ? 1 : 0;
+        return out;
+      },
+      multiply(out, a, b) {
+        const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+        const a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+        const a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+        const a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+
+        let b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3];
+        out[0] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+        out[1] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+        out[2] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+        out[3] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+
+        b0 = b[4]; b1 = b[5]; b2 = b[6]; b3 = b[7];
+        out[4] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+        out[5] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+        out[6] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+        out[7] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+
+        b0 = b[8]; b1 = b[9]; b2 = b[10]; b3 = b[11];
+        out[8] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+        out[9] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+        out[10] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+        out[11] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+
+        b0 = b[12]; b1 = b[13]; b2 = b[14]; b3 = b[15];
+        out[12] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+        out[13] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+        out[14] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+        out[15] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+        return out;
+      },
+      rotateX(out, a, rad) {
+        const s = Math.sin(rad), c = Math.cos(rad);
+        const a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+        const a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+        out[4] = a10 * c + a20 * s;
+        out[5] = a11 * c + a21 * s;
+        out[6] = a12 * c + a22 * s;
+        out[7] = a13 * c + a23 * s;
+        out[8] = a20 * c - a10 * s;
+        out[9] = a21 * c - a11 * s;
+        out[10] = a22 * c - a12 * s;
+        out[11] = a23 * c - a13 * s;
+        return out;
+      },
+      rotateY(out, a, rad) {
+        const s = Math.sin(rad), c = Math.cos(rad);
+        const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+        const a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+        out[0] = a00 * c - a20 * s;
+        out[1] = a01 * c - a21 * s;
+        out[2] = a02 * c - a22 * s;
+        out[3] = a03 * c - a23 * s;
+        out[8] = a00 * s + a20 * c;
+        out[9] = a01 * s + a21 * c;
+        out[10] = a02 * s + a22 * c;
+        out[11] = a03 * s + a23 * c;
+        return out;
+      },
+      translate(out, a, v) {
+        out[12] = a[0] * v[0] + a[4] * v[1] + a[8] * v[2] + a[12];
+        out[13] = a[1] * v[0] + a[5] * v[1] + a[9] * v[2] + a[13];
+        out[14] = a[2] * v[0] + a[6] * v[1] + a[10] * v[2] + a[14];
+        out[15] = a[3] * v[0] + a[7] * v[1] + a[11] * v[2] + a[15];
+        return out;
+      },
+      extractNormalMatrix(out, mat4) {
+        out[0] = mat4[0]; out[1] = mat4[1]; out[2] = mat4[2];
+        out[3] = mat4[4]; out[4] = mat4[5]; out[5] = mat4[6];
+        out[6] = mat4[8]; out[7] = mat4[9]; out[8] = mat4[10];
+        return out;
+      }
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // 7. 空间与投影变换
+    // ─────────────────────────────────────────────────────────────
+    function latLonToVector3(lat, lon, radius = 1.0) {
+      const phi = (90 - lat) * (Math.PI / 180);
+      const theta = (lon + 180) * (Math.PI / 180);
+      const x = -(radius * Math.sin(phi) * Math.cos(theta));
+      const z = radius * Math.sin(phi) * Math.sin(theta);
+      const y = radius * Math.cos(phi);
+      return [x, y, z];
+    }
+
+    function project3DToScreen(x, y, z, modelView, proj, width, height) {
+      const p = [
+        modelView[0]*x + modelView[4]*y + modelView[8]*z + modelView[12],
+        modelView[1]*x + modelView[5]*y + modelView[9]*z + modelView[13],
+        modelView[2]*x + modelView[6]*y + modelView[10]*z + modelView[14],
+        modelView[3]*x + modelView[7]*y + modelView[11]*z + modelView[15]
+      ];
+
+      const isVisible = p[2] < -0.8;
+
+      const clip = [
+        proj[0]*p[0] + proj[4]*p[1] + proj[8]*p[2] + proj[12]*p[3],
+        proj[1]*p[0] + proj[5]*p[1] + proj[9]*p[2] + proj[13]*p[3],
+        proj[2]*p[0] + proj[6]*p[1] + proj[10]*p[2] + proj[14]*p[3],
+        proj[3]*p[0] + proj[7]*p[1] + proj[11]*p[2] + proj[15]*p[3]
+      ];
+
+      if (clip[3] <= 0) return { x: 0, y: 0, visible: false };
+
+      const ndcX = clip[0] / clip[3];
+      const ndcY = clip[1] / clip[3];
+
+      const screenX = ((ndcX + 1) / 2) * width;
+      const screenY = ((1 - ndcY) / 2) * height;
+
+      return { x: screenX, y: screenY, visible: isVisible && ndcX >= -1.1 && ndcX <= 1.1 && ndcY >= -1.1 && ndcY <= 1.1 };
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 8. 空间音效
+    // ─────────────────────────────────────────────────────────────
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playSpaceTone(freq = 440, type = 'sine', duration = 0.3) {
+      if (!STATE.audioEnabled || !audioCtx) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.5, audioCtx.currentTime + duration);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 9. 星空背景粒子系统
+    // ─────────────────────────────────────────────────────────────
+    const stars = [];
+    function initBackgroundStars(count = 350) {
+      stars.length = 0;
+      for (let i = 0; i < count; i++) {
+        stars.push({
+          x: Math.random(),
+          y: Math.random(),
+          size: Math.random() * 1.8 + 0.3,
+          alpha: Math.random() * 0.7 + 0.2,
+          speed: Math.random() * 0.02 + 0.01,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+    }
+    initBackgroundStars();
+
+    // ─────────────────────────────────────────────────────────────
+    // 10. UI 交互与图钉
+    // ─────────────────────────────────────────────────────────────
+    const pinContainer = document.getElementById('pinContainer');
+    const pinElements = new Map();
+
+    function createCityPins() {
+      pinContainer.innerHTML = '';
+      CITIES.forEach(city => {
+        const pin = document.createElement('div');
+        pin.className = 'globe-pin';
+        pin.innerHTML = `
+          <div class="pin-label">${city.name}</div>
+          <div class="pin-dot"></div>
+        `;
+        pin.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectCity(city);
+        });
+        pinContainer.appendChild(pin);
+        pinElements.set(city.id, pin);
+      });
+    }
+    createCityPins();
+
+    function selectCity(city) {
+      STATE.selectedCity = city;
+      playSpaceTone(587, 'sine', 0.25);
+
+      document.getElementById('cityName').textContent = city.name;
+      document.getElementById('citySubname').textContent = city.subname;
+      document.getElementById('cityBadge').textContent = city.badge;
+      document.getElementById('cityDesc').textContent = city.desc;
+      document.getElementById('cityPop').textContent = city.pop;
+      document.getElementById('cityCoords').textContent = `${Math.abs(city.lat).toFixed(1)}°${city.lat >= 0 ? 'N' : 'S'}, ${Math.abs(city.lon).toFixed(1)}°${city.lon >= 0 ? 'E' : 'W'}`;
+      document.getElementById('cityCard').classList.add('active');
+
+      document.querySelectorAll('.city-chip').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.city === city.id);
+      });
+    }
+
+    function flyToCity(city) {
+      if (!city) return;
+      playSpaceTone(880, 'triangle', 0.4);
+      STATE.autoRotate = false;
+      document.getElementById('btnAutoRotate').textContent = '▶';
+
+      const targetY = -((city.lon + 90) * (Math.PI / 180));
+      const targetX = city.lat * (Math.PI / 180) * 0.8;
+
+      STATE.targetRotY = targetY;
+      STATE.targetRotX = targetX;
+      STATE.targetZoom = 1.85;
+    }
+
+    document.getElementById('btnFlyToCity').addEventListener('click', () => {
+      if (STATE.selectedCity) flyToCity(STATE.selectedCity);
+    });
+
+    document.getElementById('btnCloseCityCard').addEventListener('click', () => {
+      document.getElementById('cityCard').classList.remove('active');
+    });
+
+    // 视觉模式切换
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        STATE.mode = btn.dataset.mode;
+        playSpaceTone(440, 'sine', 0.15);
+      });
+    });
+
+    // 图层切换
+    document.querySelectorAll('.toggle-item').forEach(item => {
+      item.addEventListener('click', () => {
+        item.classList.toggle('checked');
+        const key = item.dataset.toggle;
+        STATE.toggles[key] = item.classList.contains('checked');
+        playSpaceTone(520, 'sine', 0.1);
+      });
+    });
+
+    // 快捷城市
+    document.querySelectorAll('.city-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const city = CITIES.find(c => c.id === btn.dataset.city);
+        if (city) {
+          selectCity(city);
+          flyToCity(city);
+        }
+      });
+    });
+
+    // 搜索
+    const searchInput = document.getElementById('citySearchInput');
+    const searchResults = document.getElementById('searchResults');
+
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      if (!q) {
+        searchResults.classList.remove('active');
+        return;
+      }
+      const matches = CITIES.filter(c => 
+        c.name.toLowerCase().includes(q) || 
+        c.subname.toLowerCase().includes(q) || 
+        c.desc.toLowerCase().includes(q)
+      );
+
+      if (matches.length > 0) {
+        searchResults.innerHTML = matches.map(c => `
+          <div class="search-item" data-id="${c.id}">
+            <span>${c.name}</span>
+            <span class="search-item-country">${c.subname}</span>
+          </div>
+        `).join('');
+        searchResults.classList.add('active');
+      } else {
+        searchResults.innerHTML = '<div style="padding: 10px; font-size: 12px; color: var(--text-dim); text-align: center;">未找到匹配城市</div>';
+        searchResults.classList.add('active');
+      }
+    });
+
+    searchResults.addEventListener('click', (e) => {
+      const item = e.target.closest('.search-item');
+      if (item) {
+        const city = CITIES.find(c => c.id === item.dataset.id);
+        if (city) {
+          selectCity(city);
+          flyToCity(city);
+          searchInput.value = '';
+          searchResults.classList.remove('active');
+        }
+      }
+    });
+
+    // 时间与太阳控制
+    const timeSlider = document.getElementById('timeSlider');
+    const timeLabel = document.getElementById('timeLabel');
+    const btnSyncRealtime = document.getElementById('btnSyncRealtime');
+
+    function updateTimeDisplay(minutes) {
+      const h = Math.floor(minutes / 60) % 24;
+      const m = Math.floor(minutes % 60);
+      const s = Math.floor((minutes * 60) % 60);
+      const str = `UTC ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      timeLabel.textContent = str;
+    }
+
+    timeSlider.addEventListener('input', (e) => {
+      STATE.syncRealtime = false;
+      btnSyncRealtime.classList.remove('active');
+      STATE.timeOfDayMinutes = parseFloat(e.target.value);
+      updateTimeDisplay(STATE.timeOfDayMinutes);
+    });
+
+    btnSyncRealtime.addEventListener('click', () => {
+      STATE.syncRealtime = true;
+      btnSyncRealtime.classList.add('active');
+      playSpaceTone(659, 'sine', 0.2);
+    });
+
+    const btnAutoRotate = document.getElementById('btnAutoRotate');
+    btnAutoRotate.addEventListener('click', () => {
+      STATE.autoRotate = !STATE.autoRotate;
+      btnAutoRotate.textContent = STATE.autoRotate ? '⏸' : '▶';
+      playSpaceTone(STATE.autoRotate ? 700 : 350, 'sine', 0.15);
+    });
+
+    document.getElementById('btnResetView').addEventListener('click', () => {
+      STATE.targetRotX = 0.2;
+      STATE.targetZoom = 3.2;
+      STATE.autoRotate = true;
+      btnAutoRotate.textContent = '⏸';
+      playSpaceTone(523, 'sine', 0.2);
+    });
+
+    document.getElementById('btnAudio').addEventListener('click', () => {
+      initAudio();
+      STATE.audioEnabled = !STATE.audioEnabled;
+      document.getElementById('btnAudio').classList.toggle('active', STATE.audioEnabled);
+      document.getElementById('btnAudio').textContent = STATE.audioEnabled ? '🔊' : '🔇';
+      if (STATE.audioEnabled) playSpaceTone(440, 'triangle', 0.2);
+    });
+
+    document.getElementById('btnFullscreen').addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    });
+
+    const infoModal = document.getElementById('infoModal');
+    document.getElementById('btnInfo').addEventListener('click', () => {
+      infoModal.classList.add('active');
+      playSpaceTone(587, 'sine', 0.2);
+    });
+    document.getElementById('btnCloseModal').addEventListener('click', () => {
+      infoModal.classList.remove('active');
+    });
+    infoModal.addEventListener('click', (e) => {
+      if (e.target === infoModal) infoModal.classList.remove('active');
+    });
+
+    document.getElementById('btnCapture').addEventListener('click', () => {
+      playSpaceTone(1046, 'sine', 0.3);
+      const link = document.createElement('a');
+      link.download = `Earth3D_Wallpaper_${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+
+    // ─────────────────────────────────────────────────────────────
+    // 11. 手势与鼠标拖拽
+    // ─────────────────────────────────────────────────────────────
+    window.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.hud-interactive') || e.target.closest('.globe-pin')) return;
+      STATE.isDragging = true;
+      STATE.lastMouseX = e.clientX;
+      STATE.lastMouseY = e.clientY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (STATE.isDragging) {
+        const dx = e.clientX - STATE.lastMouseX;
+        const dy = e.clientY - STATE.lastMouseY;
+        STATE.targetRotY += dx * 0.005;
+        STATE.targetRotX += dy * 0.005;
+        STATE.targetRotX = Math.max(-Math.PI * 0.45, Math.min(Math.PI * 0.45, STATE.targetRotX));
+        STATE.lastMouseX = e.clientX;
+        STATE.lastMouseY = e.clientY;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const cx = (e.clientX - rect.width / 2) / (rect.height / 2);
+      const cy = (e.clientY - rect.height / 2) / (rect.height / 2);
+      const dist = Math.sqrt(cx*cx + cy*cy);
+      if (dist < 1.0) {
+        const estLat = (-cy * 90).toFixed(1);
+        const estLon = (cx * 180).toFixed(1);
+        document.getElementById('teleCoords').textContent = `${Math.abs(estLat)}°${estLat >= 0 ? 'N' : 'S'}, ${Math.abs(estLon)}°${estLon >= 0 ? 'E' : 'W'}`;
+      }
+    });
+
+    window.addEventListener('mouseup', () => { STATE.isDragging = false; });
+
+    window.addEventListener('wheel', (e) => {
+      STATE.targetZoom += e.deltaY * 0.0025;
+      STATE.targetZoom = Math.max(1.4, Math.min(6.5, STATE.targetZoom));
+      document.getElementById('teleAltitude').textContent = `${Math.round(STATE.targetZoom * 3985)} km`;
+    }, { passive: true });
+
+    let touchDist = 0;
+    window.addEventListener('touchstart', (e) => {
+      if (e.target.closest('.hud-interactive') || e.target.closest('.globe-pin')) return;
+      if (e.touches.length === 1) {
+        STATE.isDragging = true;
+        STATE.lastMouseX = e.touches[0].clientX;
+        STATE.lastMouseY = e.touches[0].clientY;
+      } else if (e.touches.length === 2) {
+        touchDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+      }
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e) => {
+      if (STATE.isDragging && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - STATE.lastMouseX;
+        const dy = e.touches[0].clientY - STATE.lastMouseY;
+        STATE.targetRotY += dx * 0.006;
+        STATE.targetRotX += dy * 0.006;
+        STATE.targetRotX = Math.max(-Math.PI * 0.45, Math.min(Math.PI * 0.45, STATE.targetRotX));
+        STATE.lastMouseX = e.touches[0].clientX;
+        STATE.lastMouseY = e.touches[0].clientY;
+      } else if (e.touches.length === 2) {
+        const curDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const delta = (touchDist - curDist) * 0.008;
+        STATE.targetZoom += delta;
+        STATE.targetZoom = Math.max(1.4, Math.min(6.5, STATE.targetZoom));
+        touchDist = curDist;
+      }
+    }, { passive: true });
+
+    window.addEventListener('touchend', () => { STATE.isDragging = false; });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.code === 'Space') {
+        STATE.autoRotate = !STATE.autoRotate;
+        btnAutoRotate.textContent = STATE.autoRotate ? '⏸' : '▶';
+      } else if (e.code === 'KeyR') {
+        STATE.targetRotX = 0.2;
+        STATE.targetZoom = 3.2;
+      } else if (e.code === 'KeyH') {
+        STATE.hudVisible = !STATE.hudVisible;
+        document.querySelector('.hud-overlay').style.display = STATE.hudVisible ? 'flex' : 'none';
+        pinContainer.style.display = STATE.hudVisible ? 'block' : 'none';
+      }
+    });
+
+    // ─────────────────────────────────────────────────────────────
+    // 12. 渲染循环
+    // ─────────────────────────────────────────────────────────────
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let fpsTimer = performance.now();
+    let cloudOffset = 0;
+
+    const projMatrix = Mat4.create();
+    const modelViewMatrix = Mat4.create();
+    const normalMatrix = new Float32Array(9);
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        overlayCanvas.width = width;
+        overlayCanvas.height = height;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+      }
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function render(now) {
+      requestAnimationFrame(render);
+
+      const delta = (now - lastTime) * 0.001;
+      lastTime = now;
+
+      // 帧率
+      frameCount++;
+      if (now - fpsTimer >= 1000) {
+        document.getElementById('teleFPS').textContent = (frameCount * 1000 / (now - fpsTimer)).toFixed(1);
+        frameCount = 0;
+        fpsTimer = now;
+      }
+
+      // 时间
+      if (STATE.syncRealtime) {
+        const utcDate = new Date();
+        const mins = utcDate.getUTCHours() * 60 + utcDate.getUTCMinutes() + utcDate.getUTCSeconds() / 60;
+        STATE.timeOfDayMinutes = mins;
+        timeSlider.value = mins;
+        updateTimeDisplay(mins);
+      }
+
+      if (STATE.autoRotate && !STATE.isDragging) {
+        STATE.targetRotY += STATE.rotationSpeed * delta;
+      }
+
+      STATE.rotY += (STATE.targetRotY - STATE.rotY) * 0.1;
+      STATE.rotX += (STATE.targetRotX - STATE.rotX) * 0.1;
+      STATE.zoom += (STATE.targetZoom - STATE.zoom) * 0.1;
+      cloudOffset += 0.002 * delta;
+
+      const sunAngle = (STATE.timeOfDayMinutes / 1440) * 2 * Math.PI - Math.PI;
+      const sunDirX = Math.cos(sunAngle);
+      const sunDirZ = Math.sin(sunAngle);
+      const sunDirY = 0.2;
+
+      // WebGL 渲染
+      gl.clearColor(0.006, 0.007, 0.018, 1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.DEPTH_TEST);
+      gl.enable(gl.CULL_FACE);
+      gl.cullFace(gl.BACK);
+
+      const aspect = canvas.width / canvas.height;
+      Mat4.perspective(projMatrix, Math.PI / 4, aspect, 0.1, 100.0);
+
+      Mat4.identity(modelViewMatrix);
+      Mat4.translate(modelViewMatrix, modelViewMatrix, [0, 0, -STATE.zoom]);
+      Mat4.rotateX(modelViewMatrix, modelViewMatrix, STATE.rotX);
+      Mat4.rotateY(modelViewMatrix, modelViewMatrix, STATE.rotY);
+
+      Mat4.extractNormalMatrix(normalMatrix, modelViewMatrix);
+
+      gl.useProgram(program);
+
+      gl.uniformMatrix4fv(locations.uProjectionMatrix, false, projMatrix);
+      gl.uniformMatrix4fv(locations.uModelViewMatrix, false, modelViewMatrix);
+      gl.uniformMatrix3fv(locations.uNormalMatrix, false, normalMatrix);
+
+      const modeMap = { realistic: 0, night: 1, cyber: 2, climate: 3 };
+      gl.uniform1i(locations.uMode, modeMap[STATE.mode]);
+
+      gl.uniform3f(locations.uSunDirection, sunDirX, sunDirY, sunDirZ);
+      gl.uniform1f(locations.uCloudOffset, cloudOffset);
+      gl.uniform1f(locations.uTime, now * 0.001);
+      gl.uniform1i(locations.uShowClouds, STATE.toggles.clouds ? 1 : 0);
+      gl.uniform1i(locations.uShowAtmosphere, STATE.toggles.atmosphere ? 1 : 0);
+      gl.uniform1i(locations.uShowGrid, STATE.toggles.grid ? 1 : 0);
+
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, textures.earthTex);
+      gl.uniform1i(locations.uEarthTexture, 0);
+
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, textures.nightTex);
+      gl.uniform1i(locations.uNightTexture, 1);
+
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, textures.cloudsTex);
+      gl.uniform1i(locations.uCloudsTexture, 2);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+      gl.vertexAttribPointer(locations.aPosition, 3, gl.FLOAT, false, 0, 0);
+      gl.enableVertexAttribArray(locations.aPosition);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, normBuffer);
+      gl.vertexAttribPointer(locations.aNormal, 3, gl.FLOAT, false, 0, 0);
+      gl.enableVertexAttribArray(locations.aNormal);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, uvBuffer);
+      gl.vertexAttribPointer(locations.aTexCoord, 2, gl.FLOAT, false, 0, 0);
+      gl.enableVertexAttribArray(locations.aTexCoord);
+
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+      gl.drawElements(gl.TRIANGLES, sphereData.indexCount, gl.UNSIGNED_SHORT, 0);
+
+      // ─────────────────────────────────────────────────────────────
+      // 13. 2D 辅助层绘制 (星空、航线光弧、卫星)
+      // ─────────────────────────────────────────────────────────────
+      const screenW = overlayCanvas.width;
+      const screenH = overlayCanvas.height;
+      ctx2d.clearRect(0, 0, screenW, screenH);
+
+      // 1) 璀璨星空背景
+      ctx2d.fillStyle = '#fff';
+      stars.forEach(s => {
+        const twinkle = Math.sin(now * 0.002 + s.phase) * 0.3 + 0.7;
+        ctx2d.globalAlpha = s.alpha * twinkle;
+        ctx2d.fillRect(s.x * screenW, s.y * screenH, s.size, s.size);
+      });
+      ctx2d.globalAlpha = 1.0;
+
+      // 2) 3D 洲际航线数据流 (Great Circle Flight Arcs)
+      if (STATE.toggles.flights) {
+        FLIGHT_ROUTES.forEach((route, idx) => {
+          const c1 = CITIES.find(c => c.id === route.from);
+          const c2 = CITIES.find(c => c.id === route.to);
+          if (!c1 || !c2) return;
+
+          const p1 = latLonToVector3(c1.lat, c1.lon, 1.01);
+          const p2 = latLonToVector3(c2.lat, c2.lon, 1.01);
+
+          // 计算航线顶点 (高度隆起)
+          const mid = [
+            (p1[0] + p2[0]) * 0.65,
+            (p1[1] + p2[1]) * 0.65,
+            (p1[2] + p2[2]) * 0.65
+          ];
+          const midLen = Math.hypot(mid[0], mid[1], mid[2]);
+          const arcHeight = 1.25;
+          const cp = [mid[0] / midLen * arcHeight, mid[1] / midLen * arcHeight, mid[2] / midLen * arcHeight];
+
+          // 采样贝塞尔曲线并在屏幕投影
+          ctx2d.beginPath();
+          let prevScreen = null;
+          let anyVisible = false;
+          const steps = 18;
+
+          for (let step = 0; step <= steps; step++) {
+            const t = step / steps;
+            const invT = 1 - t;
+            const bx = invT * invT * p1[0] + 2 * invT * t * cp[0] + t * t * p2[0];
+            const by = invT * invT * p1[1] + 2 * invT * t * cp[1] + t * t * p2[1];
+            const bz = invT * invT * p1[2] + 2 * invT * t * cp[2] + t * t * p2[2];
+
+            const sp = project3DToScreen(bx, by, bz, modelViewMatrix, projMatrix, screenW, screenH);
+            if (sp.visible) {
+              anyVisible = true;
+              if (!prevScreen) ctx2d.moveTo(sp.x, sp.y);
+              else ctx2d.lineTo(sp.x, sp.y);
+            }
+            prevScreen = sp;
+          }
+
+          if (anyVisible) {
+            ctx2d.strokeStyle = 'rgba(56, 189, 248, 0.28)';
+            ctx2d.lineWidth = 1.5;
+            ctx2d.setLineDash([4, 4]);
+            ctx2d.stroke();
+            ctx2d.setLineDash([]);
+
+            // 飞行中光子脉冲
+            const pulseT = ((now * 0.0004 + idx * 0.2) % 1.0);
+            const invP = 1 - pulseT;
+            const px = invP * invP * p1[0] + 2 * invP * pulseT * cp[0] + pulseT * pulseT * p2[0];
+            const py = invP * invP * p1[1] + 2 * invP * pulseT * cp[1] + pulseT * pulseT * p2[1];
+            const pz = invP * invP * p1[2] + 2 * invP * pulseT * cp[2] + pulseT * pulseT * p2[2];
+
+            const psp = project3DToScreen(px, py, pz, modelViewMatrix, projMatrix, screenW, screenH);
+            if (psp.visible) {
+              ctx2d.fillStyle = '#fef08a';
+              ctx2d.shadowColor = '#fbbf24';
+              ctx2d.shadowBlur = 8;
+              ctx2d.beginPath();
+              ctx2d.arc(psp.x, psp.y, 2.5, 0, Math.PI * 2);
+              ctx2d.fill();
+              ctx2d.shadowBlur = 0;
+            }
+          }
+        });
+      }
+
+      // 3) 人造卫星与空间站 (Orbiting Satellites)
+      if (STATE.toggles.satellites) {
+        SATELLITES.forEach(sat => {
+          const orbitAngle = now * 0.0008 * sat.speed + sat.phase;
+          const incRad = sat.inc * (Math.PI / 180);
+          
+          const sx = Math.cos(orbitAngle) * sat.alt;
+          const sy = Math.sin(orbitAngle) * Math.sin(incRad) * sat.alt;
+          const sz = Math.sin(orbitAngle) * Math.cos(incRad) * sat.alt;
+
+          const sp = project3DToScreen(sx, sy, sz, modelViewMatrix, projMatrix, screenW, screenH);
+          if (sp.visible) {
+            ctx2d.fillStyle = sat.color;
+            ctx2d.shadowColor = sat.color;
+            ctx2d.shadowBlur = 10;
+            ctx2d.beginPath();
+            ctx2d.arc(sp.x, sp.y, 3.5, 0, Math.PI * 2);
+            ctx2d.fill();
+            ctx2d.shadowBlur = 0;
+
+            ctx2d.font = '10px -apple-system, sans-serif';
+            ctx2d.fillStyle = '#cbd5e1';
+            ctx2d.fillText(sat.name, sp.x + 8, sp.y + 3);
+          }
+        });
+      }
+
+      // ─────────────────────────────────────────────────────────────
+      // 14. 更新 3D 城市地标图钉
+      // ─────────────────────────────────────────────────────────────
+      if (STATE.toggles.pins && STATE.hudVisible) {
+        CITIES.forEach(city => {
+          const pinEl = pinElements.get(city.id);
+          if (!pinEl) return;
+
+          const localPos = latLonToVector3(city.lat, city.lon, 1.01);
+          const screenPos = project3DToScreen(localPos[0], localPos[1], localPos[2], modelViewMatrix, projMatrix, screenW, screenH);
+
+          if (screenPos.visible) {
+            pinEl.style.display = 'flex';
+            pinEl.style.left = `${screenPos.x}px`;
+            pinEl.style.top = `${screenPos.y}px`;
+          } else {
+            pinEl.style.display = 'none';
+          }
+        });
+      } else {
+        pinElements.forEach(el => el.style.display = 'none');
+      }
+    }
+
+    requestAnimationFrame(render);
+
+    setTimeout(() => {
+      selectCity(CITIES[0]);
+    }, 600);
+
+  })();
+  </script>
+</body>
+</html>

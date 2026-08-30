@@ -387,6 +387,9 @@ function drawSky() {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  drawMoon();
+  drawEarthBall();
+
   ctx.fillStyle = "rgba(255,255,255,.85)";
   const cloudDefs = [[60, 60, 1], [300, 90, 1.4], [620, 50, 1], [1000, 110, 1.6], [1400, 70, 1.2], [2100, 90, 1.4], [2600, 60, 1], [3200, 100, 1.6], [3700, 70, 1.2]];
   for (const [cx, cy, s] of cloudDefs) {
@@ -395,6 +398,80 @@ function drawSky() {
     const c = (ox, oy, r) => { ctx.beginPath(); ctx.arc(ox, oy, r, 0, 7); ctx.fill(); };
     c(x, cy, 24 * s); c(x + 22 * s, cy - 10 * s, 18 * s); c(x + 42 * s, cy, 20 * s); c(x + 20 * s, cy + 6 * s, 20 * s);
   }
+}
+
+function drawMoon() {
+  const x = canvas.width - 110;
+  const y = 84;
+  const r = 42;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, 7);
+  ctx.clip();
+
+  const g = ctx.createRadialGradient(x - 12, y - 12, 6, x, y, r);
+  g.addColorStop(0, "#ffffff");
+  g.addColorStop(1, "#e8e0c8");
+  ctx.fillStyle = g;
+  ctx.fillRect(x - r, y - r, r * 2, r * 2);
+
+  ctx.fillStyle = "rgba(0,0,0,.08)";
+  const craters = [[-16, -10, 7], [12, -18, 5], [10, 14, 9], [-22, 16, 4]];
+  for (const [cx, cy, cr] of craters) {
+    ctx.beginPath();
+    ctx.arc(x + cx, y + cy, cr, 0, 7);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = "rgba(120,90,50,.75)";
+  ctx.font = "bold 12px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("我在地球", x, y + 4);
+  ctx.restore();
+}
+
+function drawEarthBall() {
+  const mx = canvas.width - 110;  // 月亮中心 x
+  const my = 84;                   // 月亮中心 y
+  const r = 42;                    // 月亮半径
+  const bx = mx - r - 22;          // 小球在月亮左侧
+  const by = my + 10;
+  const br = 12;
+  ctx.save();
+
+  // 发光
+  const glow = ctx.createRadialGradient(bx, by, 0, bx, by, br * 3);
+  glow.addColorStop(0, "rgba(100,180,255,.15)");
+  glow.addColorStop(1, "rgba(100,180,255,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(bx - br * 3, by - br * 3, br * 6, br * 6);
+
+  // 地球本体
+  const g = ctx.createRadialGradient(bx - 3, by - 3, 2, bx, by, br);
+  g.addColorStop(0, "#5cb8e8");
+  g.addColorStop(0.5, "#3c9ed8");
+  g.addColorStop(1, "#1a6b9e");
+  ctx.beginPath();
+  ctx.arc(bx, by, br, 0, 7);
+  ctx.fillStyle = g;
+  ctx.fill();
+
+  // 大陆（绿色小斑点）
+  ctx.fillStyle = "#4fb02e";
+  const lands = [[-4, -2, 4], [3, -5, 3], [1, 4, 3], [-6, 3, 2], [5, 0, 2]];
+  for (const [lx, ly, lr] of lands) {
+    ctx.beginPath();
+    ctx.arc(bx + lx, by + ly, lr, 0, 7);
+    ctx.fill();
+  }
+
+  // 高光
+  ctx.fillStyle = "rgba(255,255,255,.35)";
+  ctx.beginPath();
+  ctx.arc(bx - 4, by - 4, 5, 0, 7);
+  ctx.fill();
+
+  ctx.restore();
 }
 
 function drawBackground() {
