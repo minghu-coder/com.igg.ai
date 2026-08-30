@@ -192,7 +192,7 @@
       };
     }
 
-    function initStars() {
+function initStars() {
       stars = [];
       for (let i = 0; i < CONFIG.starCount; i++) {
         stars.push(createStar());
@@ -201,11 +201,9 @@
       for (let i = 0; i < Math.floor(CONFIG.starCount * .4); i++) {
         stars.push(createStar(CONFIG.parallaxLayers - 1));
       }
-      updateStarCount();
     }
 
-    function updateStarCount() {
-      const cName = constellations.filter(c => c.name).map(c => c.name).join(' ');
+function updateStarCount() {
       starCountEl.textContent = `✦ ${stars.length} ╱ ${constellations.filter(c => c.name).length} 星座`;
       extraInfoEl.textContent = `${CONFIG.sun ? '☀ 太阳 · ' : ''}${planets.length} 行星 · ${meteorRain ? '☄ 流星雨' : ''}`;
     }
@@ -838,10 +836,11 @@
       cursorGlow.style.display = uiHidden ? 'none' : 'block';
     });
 
-    // ─── 启动 ─────────────────────────────────────
+// ─── 启动 ─────────────────────────────────────
     resize();
     initNebulae();
     initPlanets();
+    updateStarCount();
     lastFrame = performance.now();
     fpsTimer = lastFrame;
     requestAnimationFrame(loop);
